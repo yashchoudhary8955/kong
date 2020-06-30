@@ -398,6 +398,10 @@ local CONF_INFERENCES = {
   cluster_cert = { typ = "string" },
   cluster_cert_key = { typ = "string" },
   kic = { typ = "boolean" },
+  worker_events_timeout = { typ = "number" },
+  worker_events_interval = { typ = "number" },
+  worker_events_wait_interval = { typ = "number" },
+  worker_events_wait_max = { typ = "number" },
 }
 
 

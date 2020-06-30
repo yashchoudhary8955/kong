@@ -1024,6 +1024,21 @@
                                  # in proxy latency, with downside of longer
                                  # converge time for router updates.
 
+#worker_events_timeout = 5       # Defines how long an event data will be valid
+                                 # before being discarded, in seconds.
+
+#worker_events_interval = 1      # Defines the interval in which workers will
+                                 # check for new events, in seconds.
+
+#worker_events_wait_interval = 0.010     # Defines how long the worker will wait
+                                         # before checking again for an event
+                                         # data that was not available when the
+                                         # event was received, in seconds.
+
+#worker_events_wait_max = 0.5    # Defines how long the worker will wait for
+                                 # event data before discarding the event at
+                                 # all, in seconds.
+
 #------------------------------------------------------------------------------
 # DEVELOPMENT & MISCELLANEOUS
 #------------------------------------------------------------------------------

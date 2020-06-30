@@ -113,6 +113,11 @@ dns_no_sync = off
 router_consistency = strict
 router_update_frequency = 1
 
+worker_events_timeout = 5
+worker_events_interval = 1
+worker_events_wait_interval = 0.010
+worker_events_wait_max = 0.5
+
 lua_socket_pool_size = 30
 lua_ssl_trusted_certificate = NONE
 lua_ssl_verify_depth = 1

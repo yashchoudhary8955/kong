@@ -477,7 +477,7 @@ function Kong.init_worker()
     end
   end
 
-  local worker_events, err = kong_global.init_worker_events()
+  local worker_events, err = kong_global.init_worker_events(kong.configuration)
   if not worker_events then
     stash_init_worker_error("failed to instantiate 'kong.worker_events' " ..
                             "module: " .. err)

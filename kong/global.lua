@@ -119,18 +119,22 @@ do
   end
 
 
-  function _GLOBAL.init_worker_events()
+  function _GLOBAL.init_worker_events(kong_config)
     -- Note: worker_events will not work correctly if required at the top of the file.
     --       It must be required right here, inside the init function
     local worker_events = require "resty.worker.events"
+    local timeout = kong_config and kong_config.worker_events_timeout or 5
+    local interval = kong_config and kong_config.worker_events_interval or 1
+    local wait_interval = kong_config and kong_config.worker_events_wait_interval or 0.010
+    local wait_max = kong_config and kong_config.worker_events_wait_max or 0.5
 
     local ok, err = worker_events.configure {
       shm = "kong_process_events", -- defined by "lua_shared_dict"
-      timeout = 5,            -- life time of event data in shm
-      interval = 1,           -- poll interval (seconds)
+      timeout = timeout,            -- life time of event data in shm
+      interval = interval,           -- poll interval (seconds)
 
-      wait_interval = 0.010,  -- wait before retry fetching event data
-      wait_max = 0.5,         -- max wait time before discarding event
+      wait_interval = wait_interval,  -- wait before retry fetching event data
+      wait_max = wait_max,         -- max wait time before discarding event
     }
     if not ok then
       return nil, err
