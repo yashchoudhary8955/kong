@@ -287,6 +287,16 @@ describe("Balancer", function()
       assert(hc1:stop())
     end)
 
+    it("creates a balancer on concurrent calls", function()
+      local function create_balancer(_, ...)
+        assert(balancer._create_balancer(...))
+      end
+      ngx.timer.at(0, create_balancer, UPSTREAMS_FIXTURES[1])
+      ngx.timer.at(0, create_balancer, UPSTREAMS_FIXTURES[1])
+      ngx.timer.at(0, create_balancer, UPSTREAMS_FIXTURES[1])
+      ngx.timer.at(0, create_balancer, UPSTREAMS_FIXTURES[1])
+    end)
+
     it("re-creates a balancer if told to", function()
       local b1 = assert(balancer._create_balancer(UPSTREAMS_FIXTURES[1], true))
       local hc1 = balancer._get_healthchecker(b1)

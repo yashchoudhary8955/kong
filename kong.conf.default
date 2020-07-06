@@ -1024,6 +1024,9 @@
                                  # in proxy latency, with downside of longer
                                  # converge time for router updates.
 
+#balancer_creation_timeout = 60  # Defines how long Kong will wait for a
+                                 # concurrent balancer creation before timing-out.
+
 #------------------------------------------------------------------------------
 # DEVELOPMENT & MISCELLANEOUS
 #------------------------------------------------------------------------------

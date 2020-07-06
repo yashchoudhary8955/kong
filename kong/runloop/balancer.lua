@@ -373,7 +373,8 @@ do
   local creating = {}
 
   local function wait(id)
-    local timeout = 30
+    local timeout = (kong and kong.configuration) and
+                    kong.configuration.balancer_creation_timeout or 60
     local step = 0.001
     local ratio = 2
     local max_step = 0.5
