@@ -159,20 +159,59 @@ end
 local reset_kong_shm
 do
   local preserve_keys = {
-    "events:requests",
     "kong:node_id",
+    "kong:cache:kong_db_cache:curr_mlcache",
+    "kong:cache:kong_core_db_cache:curr_mlcache",
+    "cluster_events:at",
+    "events:requests",
+    "events:requests:http",
+    "events:requests:https",
+    "events:requests:h2c",
+    "events:requests:h2",
+    "events:requests:grpc",
+    "events:requests:grpcs",
+    "events:requests:ws",
+    "events:requests:wss",
+    "events:streams",
+    "events:streams:tcp",
+    "events:streams:tls",
+    "events:requests:go_plugins",
   }
 
   reset_kong_shm = function()
     local preserved = {}
 
     for _, key in ipairs(preserve_keys) do
-      -- ignore errors
-      preserved[key] = ngx.shared.kong:get(key)
+      preserved[key] = ngx.shared.kong:get(key) -- ignore errors
     end
 
-    ngx.shared.kong:flush_all()
-    ngx.shared.kong:flush_expired(0)
+    local current_page = preserved["kong:cache:kong_db_cache:curr_mlcache"] or 1
+    local suffix = current_page == 1 and "" or "_2"
+
+    local shms = {
+      "kong",
+      "kong_locks",
+      "kong_healthchecks",
+      "kong_process_events",
+      "kong_cluster_events",
+      "kong_rate_limiting_counters",
+      "kong_core_db_cache" .. suffix,
+      "kong_core_db_cache_miss" .. suffix,
+      "kong_db_cache" .. suffix,
+      "kong_db_cache_miss" .. suffix,
+      "kong_clustering",
+      --"kong_cassandra", -- not cleared because it causes errors in test.
+                          -- not sure if the test is wrong or do we really
+                          -- need to keep this.
+    }
+
+    for _, shm in ipairs(shms) do
+      local dict = ngx.shared[shm]
+      if dict then
+        dict:flush_all()
+        dict:flush_expired(0)
+      end
+    end
 
     for _, key in ipairs(preserve_keys) do
       ngx.shared.kong:set(key, preserved[key])

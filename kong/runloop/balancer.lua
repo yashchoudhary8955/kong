@@ -2,20 +2,30 @@ local pl_tablex = require "pl.tablex"
 local singletons = require "kong.singletons"
 local utils = require "kong.tools.utils"
 
--- due to startup/require order, cannot use the ones from 'singletons' here
+
+-- due to startup/require order, cannot use the ones from 'kong' here
 local dns_client = require "resty.dns.client"
 
-local table_concat = table.concat
+
 local crc32 = ngx.crc32_short
 local toip = dns_client.toip
 local log = ngx.log
 local sleep = ngx.sleep
 local min = math.min
 local max = math.max
+local type = type
+local match = string.match
+local pairs = pairs
+local ipairs = ipairs
+local tostring = tostring
+local tonumber = tonumber
+local assert = assert
+local table = table
 
-local CRIT  = ngx.CRIT
-local ERR   = ngx.ERR
-local WARN  = ngx.WARN
+
+local CRIT = ngx.CRIT
+local ERR = ngx.ERR
+local WARN = ngx.WARN
 local DEBUG = ngx.DEBUG
 local EMPTY_T = pl_tablex.readonly {}
 
@@ -47,7 +57,7 @@ local healthcheck_subscribers = {}
 
 -- Caching logic
 --
--- We retain 3 entities in singletons.cache:
+-- We retain 3 entities in cache:
 --
 -- 1) `"balancer:upstreams"` - a list of upstreams
 --    to be invalidated on any upstream change
@@ -88,71 +98,66 @@ local function stop_healthchecker(balancer)
   healthcheckers[balancer] = nil
 end
 
+------------------------------------------------------------------------------
+-- Loads a single upstream entity.
+-- @param upstream_id string
+-- @return the upstream table, or nil+error
+local function load_upstream_into_memory(upstream_id)
+  log(DEBUG, "fetching upstream: ", tostring(upstream_id))
 
-local get_upstream_by_id
-do
-  ------------------------------------------------------------------------------
-  -- Loads a single upstream entity.
-  -- @param upstream_id string
-  -- @return the upstream table, or nil+error
-  local function load_upstream_into_memory(upstream_id)
-    log(DEBUG, "fetching upstream: ", tostring(upstream_id))
-
-    local upstream, err = singletons.db.upstreams:select({id = upstream_id})
-    if not upstream then
-      return nil, err
-    end
-
-    return upstream
+  local upstream, err = singletons.db.upstreams:select({id = upstream_id})
+  if not upstream then
+    return nil, err
   end
-  _load_upstream_into_memory = load_upstream_into_memory
 
-  get_upstream_by_id = function(upstream_id)
-    local upstream_cache_key = "balancer:upstreams:" .. upstream_id
-    return singletons.core_cache:get(upstream_cache_key, nil,
-                                load_upstream_into_memory, upstream_id)
-  end
+  return upstream
+end
+_load_upstream_into_memory = load_upstream_into_memory
+
+
+local function get_upstream_by_id(upstream_id)
+  local upstream_cache_key = "balancer:upstreams:" .. upstream_id
+
+  return singletons.core_cache:get(upstream_cache_key, nil,
+                                   load_upstream_into_memory, upstream_id)
 end
 
 
-local fetch_target_history
-do
-  ------------------------------------------------------------------------------
-  -- Loads the target history from the DB.
-  -- @param upstream_id Upstream uuid for which to load the target history
-  -- @return The target history array, with target entity tables.
-  local function load_targets_into_memory(upstream_id)
-    log(DEBUG, "fetching targets for upstream: ", tostring(upstream_id))
+------------------------------------------------------------------------------
+-- Loads the target history from the DB.
+-- @param upstream_id Upstream uuid for which to load the target history
+-- @return The target history array, with target entity tables.
+local function load_targets_into_memory(upstream_id)
+  log(DEBUG, "fetching targets for upstream: ", tostring(upstream_id))
 
-    local target_history, err, err_t =
-      singletons.db.targets:select_by_upstream_raw({ id = upstream_id })
+  local target_history, err, err_t =
+    singletons.db.targets:select_by_upstream_raw({ id = upstream_id })
 
-    if not target_history then
-      return nil, err, err_t
-    end
-
-    -- perform some raw data updates
-    for _, target in ipairs(target_history) do
-      -- split `target` field into `name` and `port`
-      local port
-      target.name, port = string.match(target.target, "^(.-):(%d+)$")
-      target.port = tonumber(port)
-    end
-
-    return target_history
+  if not target_history then
+    return nil, err, err_t
   end
-  _load_targets_into_memory = load_targets_into_memory
 
-
-  ------------------------------------------------------------------------------
-  -- Fetch target history, from cache or the DB.
-  -- @param upstream The upstream entity object
-  -- @return The target history array, with target entity tables.
-  fetch_target_history = function(upstream)
-    local targets_cache_key = "balancer:targets:" .. upstream.id
-    return singletons.core_cache:get(targets_cache_key, nil,
-                                load_targets_into_memory, upstream.id)
+  -- perform some raw data updates
+  for _, target in ipairs(target_history) do
+    -- split `target` field into `name` and `port`
+    local port
+    target.name, port = match(target.target, "^(.-):(%d+)$")
+    target.port = tonumber(port)
   end
+
+  return target_history
+end
+_load_targets_into_memory = load_targets_into_memory
+
+
+------------------------------------------------------------------------------
+-- Fetch target history, from cache or the DB.
+-- @param upstream The upstream entity object
+-- @return The target history array, with target entity tables.
+local function fetch_target_history(upstream)
+  local targets_cache_key = "balancer:targets:" .. upstream.id
+  return singletons.core_cache:get(targets_cache_key, nil,
+                              load_targets_into_memory, upstream.id)
 end
 
 
@@ -342,7 +347,7 @@ do
       -- Do not run active healthchecks in `stream` module
       local checks = upstream.healthchecks
       if (ngx.config.subsystem == "stream" and checks.active.type ~= "tcp")
-         or (ngx.config.subsystem == "http" and checks.active.type == "tcp")
+      or (ngx.config.subsystem == "http"   and checks.active.type == "tcp")
       then
         checks = pl_tablex.deepcopy(checks)
         checks.active.healthy.interval = 0
@@ -541,42 +546,36 @@ local function check_target_history(upstream, balancer)
   return true
 end
 
-
-local get_all_upstreams
-do
-  local function load_upstreams_dict_into_memory()
-    local upstreams_dict = {}
-    -- build a dictionary, indexed by the upstream name
-    for up, err in singletons.db.upstreams:each() do
-      if err then
-        log(CRIT, "could not obtain list of upstreams: ", err)
-        return nil
-      end
-
-      upstreams_dict[up.name] = up.id
-    end
-    return upstreams_dict
-  end
-  _load_upstreams_dict_into_memory = load_upstreams_dict_into_memory
-
-
-  local opts = { neg_ttl = 10 }
-
-
-  ------------------------------------------------------------------------------
-  -- Implements a simple dictionary with all upstream-ids indexed
-  -- by their name.
-  -- @return The upstreams dictionary (a map with upstream names as string keys
-  -- and upstream entity tables as values), or nil+error
-  get_all_upstreams = function()
-    local upstreams_dict, err = singletons.core_cache:get("balancer:upstreams", opts,
-                                                load_upstreams_dict_into_memory)
+local function load_upstreams_dict_into_memory()
+  local upstreams_dict = {}
+  -- build a dictionary, indexed by the upstream name
+  for up, err in singletons.db.upstreams:each() do
     if err then
-      return nil, err
+      log(CRIT, "could not obtain list of upstreams: ", err)
+      return nil
     end
 
-    return upstreams_dict or {}
+    upstreams_dict[up.name] = up.id
   end
+  return upstreams_dict
+end
+_load_upstreams_dict_into_memory = load_upstreams_dict_into_memory
+
+local opts = { neg_ttl = 10 }
+
+------------------------------------------------------------------------------
+-- Implements a simple dictionary with all upstream-ids indexed
+-- by their name.
+-- @return The upstreams dictionary (a map with upstream names as string keys
+-- and upstream entity tables as values), or nil+error
+local function get_all_upstreams()
+  local upstreams_dict, err = singletons.core_cache:get("balancer:upstreams", opts,
+                                                        load_upstreams_dict_into_memory)
+  if err then
+    return nil, err
+  end
+
+  return upstreams_dict or {}
 end
 
 
@@ -665,18 +664,7 @@ end
 -- @param operation "create", "update" or "delete"
 -- @param target Target table with `upstream.id` field
 local function on_target_event(operation, target)
-
-  if operation == "reset" then
-    local upstreams = get_all_upstreams()
-    for name, id in pairs(upstreams) do
-      do_target_event("create", id, name)
-    end
-
-  else
-    do_target_event(operation, target.upstream.id, target.upstream.name)
-
-  end
-
+  do_target_event(operation, target.upstream.id, target.upstream.name)
 end
 
 
@@ -710,7 +698,7 @@ local create_hash = function(upstream, ctx)
     elseif hash_on == "header" then
       identifier = ngx.req.get_headers()[upstream[header_field_name]]
       if type(identifier) == "table" then
-        identifier = table_concat(identifier)
+        identifier = table.concat(identifier)
       end
 
     elseif hash_on == "cookie" then
@@ -765,7 +753,10 @@ local function init()
   local oks, errs = 0, 0
   for name, id in pairs(upstreams) do
     local upstream = get_upstream_by_id(id)
-    local ok, err = create_balancer(upstream)
+    local ok, err
+    if upstream ~= nil then
+      ok, err = create_balancer(upstream)
+    end
     if ok ~= nil then
       oks = oks + 1
     else
@@ -775,14 +766,13 @@ local function init()
   end
   log(DEBUG, "initialized ", oks, " balancer(s), ", errs, " error(s)")
 
+
 end
 
 
 local function do_upstream_event(operation, upstream_id, upstream_name)
   if operation == "create" then
-
     singletons.core_cache:invalidate_local("balancer:upstreams")
-
     local upstream = get_upstream_by_id(upstream_id)
     if not upstream then
       log(ERR, "upstream not found for ", upstream_id)
@@ -795,7 +785,6 @@ local function do_upstream_event(operation, upstream_id, upstream_name)
     end
 
   elseif operation == "delete" or operation == "update" then
-
     if singletons.db.strategy ~= "off" then
       singletons.core_cache:invalidate_local("balancer:upstreams")
       singletons.core_cache:invalidate_local("balancer:upstreams:" .. upstream_id)
@@ -833,21 +822,7 @@ end
 -- @param operation "create", "update" or "delete"
 -- @param upstream_data table with `id` and `name` fields
 local function on_upstream_event(operation, upstream_data)
-
-  if operation == "reset" then
-    init()
-
-  elseif operation == "delete_all" then
-    local upstreams = get_all_upstreams()
-    for name, id in pairs(upstreams) do
-      do_upstream_event("delete", id, name)
-    end
-
-  else
-    do_upstream_event(operation, upstream_data.id, upstream_data.name)
-
-  end
-
+  do_upstream_event(operation, upstream_data.id, upstream_data.name)
 end
 
 
@@ -917,6 +892,7 @@ local function execute(target, ctx)
       (port == "No peers are available" or port == "Balancer is unhealthy") then
       return nil, "failure to get a peer from the ring-balancer", 503
     end
+    hostname = hostname or ip
     target.hash_value = hash_value
     target.balancer_handle = handle
 
@@ -1117,6 +1093,30 @@ local function get_balancer_health(upstream_id)
 end
 
 
+local function stop_healthcheckers()
+  local upstreams = get_all_upstreams()
+  for _, id in pairs(upstreams) do
+    local balancer = balancers[id]
+    if balancer then
+      stop_healthchecker(balancer)
+    end
+
+    set_balancer(id, nil)
+  end
+end
+
+
+local function delete_all()
+  local upstreams = get_all_upstreams()
+  for _, id in pairs(upstreams) do
+    singletons.core_cache:invalidate_local("balancer:upstreams:" .. id)
+    singletons.core_cache:invalidate_local("balancer:targets:" .. id)
+  end
+
+  singletons.core_cache:invalidate_local("balancer:upstreams")
+end
+
+
 --------------------------------------------------------------------------------
 -- for unit-testing purposes only
 local function _get_healthchecker(balancer)
@@ -1144,6 +1144,8 @@ return {
   get_upstream_health = get_upstream_health,
   get_upstream_by_id = get_upstream_by_id,
   get_balancer_health = get_balancer_health,
+  stop_healthcheckers = stop_healthcheckers,
+  delete_all = delete_all,
 
   -- ones below are exported for test purposes only
   _create_balancer = create_balancer,

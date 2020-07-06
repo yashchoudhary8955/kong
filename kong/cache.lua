@@ -226,8 +226,6 @@ function _M:get(key, opts, cb, ...)
     error("key must be a string", 2)
   end
 
-  --log(DEBUG, "get from key: ", key)
-
   local v, err = self.mlcache:get(key, opts, cb, ...)
   if err then
     return nil, "failed to get from node cache: " .. err
@@ -255,20 +253,23 @@ function _M:get_bulk(bulk, opts)
 end
 
 
-function _M:safe_set(key, value, shadow_page)
+function _M:safe_set(key, value, shadow)
   local str_marshalled, err = marshall_for_shm(value, self.mlcache.ttl,
                                                       self.mlcache.neg_ttl)
   if err then
     return nil, err
   end
 
-  local page = 1
-  if shadow_page and #self.mlcaches == 2 then
-    page = (self.curr_mlcache == 1) and 2 or 1
+  local current_page = self.curr_mlcache or 1
+
+  local set_page
+  if shadow and #self.mlcaches == 2 then
+    set_page = current_page == 1 and 2 or 1
+  else
+    set_page = current_page
   end
 
-  local shm_name = self.shm_names[page]
-
+  local shm_name = self.shm_names[set_page]
   return ngx.shared[shm_name]:safe_set(shm_name .. key, str_marshalled)
 end
 
@@ -317,15 +318,18 @@ function _M:invalidate(key)
 end
 
 
-function _M:purge(shadow_page)
+function _M:purge(shadow)
   log(NOTICE, "purging (local) cache")
 
-  local page = 1
-  if shadow_page and #self.mlcaches == 2 then
-    page = (self.curr_mlcache == 1) and 2 or 1
+  local current_page = self.curr_mlcache or 1
+  local purge_page
+  if shadow and #self.mlcaches == 2 then
+    purge_page = current_page == 1 and 2 or 1
+  else
+    purge_page = current_page
   end
 
-  local ok, err = self.mlcaches[page]:purge()
+  local ok, err = self.mlcaches[purge_page]:purge(true)
   if not ok then
     log(ERR, "failed to purge cache: ", err)
   end
@@ -339,8 +343,11 @@ function _M:flip()
 
   log(DEBUG, "flipping current cache")
 
-  self.curr_mlcache = (self.curr_mlcache == 1) and 2 or 1
-  self.mlcache = self.mlcaches[self.curr_mlcache]
+  local current_page = self.curr_mlcache or 1
+  local next_page = current_page == 1 and 2 or 1
+
+  self.curr_mlcache = next_page
+  self.mlcache = self.mlcaches[next_page]
 end
 
 
