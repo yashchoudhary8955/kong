@@ -39,6 +39,7 @@ local unpack       = unpack
 local ERR   = ngx.ERR
 local WARN  = ngx.WARN
 local DEBUG = ngx.DEBUG
+local INFO  = ngx.INFO
 local COMMA = byte(",")
 local SPACE = byte(" ")
 
@@ -448,7 +449,10 @@ local function rebuild(name, callback, version, opts)
     return true
   end
 
-  return concurrency.with_coroutine_mutex(opts, callback)
+  log(INFO, "rebuilding ", name, " version ", version)
+  local ok, err = concurrency.with_coroutine_mutex(opts, callback)
+  log(INFO, "rebuilt ", name, " version ", version)
+  return ok, err
 end
 
 

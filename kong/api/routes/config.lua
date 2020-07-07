@@ -95,7 +95,10 @@ return {
       end
 
       local ok, err = concurrency.with_worker_mutex({ name = "dbless-worker" }, function()
-        return declarative.load_into_cache_with_events(entities, new_hash)
+        kong.log.info("worker #", ngx.worker.id(), " loading config (", new_hash, ")")
+        local load_ok, load_err = declarative.load_into_cache_with_events(entities, new_hash)
+        kong.log.info("worker #", ngx.worker.id(), " cached config (", new_hash, ")")
+        return load_ok, load_err
       end)
 
       if err == "no memory" then
