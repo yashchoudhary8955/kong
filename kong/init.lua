@@ -807,6 +807,9 @@ function Kong.balancer()
   kong_global.set_phase(kong, PHASES.balancer)
 
   local balancer_data = ctx.balancer_data
+
+  ngx.log(ngx.ERR, require "inspect"(balancer_data.client_certificate))
+
   local tries = balancer_data.tries
   local current_try = {}
   balancer_data.try_count = balancer_data.try_count + 1

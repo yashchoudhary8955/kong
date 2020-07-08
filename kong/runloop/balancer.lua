@@ -1081,6 +1081,7 @@ end
 -- @return true on success, nil+error message+status code otherwise
 local function execute(target, ctx)
   if target.type ~= "name" then
+    ngx.log(ngx.ERR, "DOGGY")
     -- it's an ip address (v4 or v6), so nothing we can do...
     target.ip = target.host
     target.port = target.port or 80 -- TODO: remove this fallback value
@@ -1097,16 +1098,20 @@ local function execute(target, ctx)
 
   if dns_cache_only then
     -- retry, so balancer is already set if there was one
+    ngx.log(ngx.ERR, "HERE")
     balancer = target.balancer
 
   else
+    ngx.log(ngx.ERR, "KITTY")
     -- first try, so try and find a matching balancer/upstream object
     balancer, upstream = get_balancer(target)
     if balancer == nil then -- `false` means no balancer, `nil` is error
+      ngx.log(ngx.ERR, "NOTTY")
       return nil, upstream, 500
     end
 
     if balancer then
+      ngx.log(ngx.ERR, "BALANCER")
       -- store for retries
       target.balancer = balancer
 
@@ -1120,8 +1125,12 @@ local function execute(target, ctx)
     end
   end
 
+  ngx.log(ngx.ERR, "POTTY")
+
   local ip, port, hostname, handle
   if balancer then
+    ngx.log(ngx.ERR, "LOTTY")
+
     -- have to invoke the ring-balancer
     local hstate = run_hook("balancer:get_peer:pre", target.host)
     ip, port, hostname, handle = balancer:getPeer(dns_cache_only,
@@ -1137,6 +1146,8 @@ local function execute(target, ctx)
     target.balancer_handle = handle
 
   else
+    ngx.log(ngx.ERR, "MIKKY")
+
     -- have to do a regular DNS lookup
     local try_list
     local hstate = run_hook("balancer:to_ip:pre", target.host)
@@ -1156,13 +1167,23 @@ local function execute(target, ctx)
     return nil, port, 500
   end
 
+  ngx.log(ngx.ERR, "ROCKKY")
+
   target.ip = ip
   target.port = port
-  if upstream and upstream.host_header ~= nil then
-    target.hostname = upstream.host_header
-  else
-    target.hostname = hostname
+
+  if upstream then
+    if upstream.host_header ~= nil then
+      target.hostname = upstream.host_header
+    else
+      target.hostname = hostname
+    end
+
+    if upstream.client_certificate ~= nil then
+      target.client_certificate = upstream.client_certificate
+    end
   end
+
   return true
 end
 
