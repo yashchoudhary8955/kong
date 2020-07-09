@@ -221,6 +221,12 @@ function _M.new(opts)
 end
 
 
+function _M:save_curr_page()
+  return ngx.shared.kong:set(
+    "kong:cache:" .. self.shm_names[1] .. ":curr_mlcache", self.curr_mlcache)
+end
+
+
 function _M:get(key, opts, cb, ...)
   if type(key) ~= "string" then
     error("key must be a string", 2)
