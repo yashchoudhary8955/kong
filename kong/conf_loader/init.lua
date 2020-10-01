@@ -1339,17 +1339,33 @@ local function load(path, custom_conf, opts)
 
   conf = tablex.merge(conf, defaults) -- intersection (remove extraneous properties)
 
+  local is_nobody = false
+
   do
     -- nginx 'user' directive
     local user = utils.strip(conf.nginx_main_user):gsub("%s+", " ")
     if user == "nobody" or user == "nobody nobody" then
       conf.nginx_main_user = nil
+      is_nobody = true
     end
 
     local user = utils.strip(conf.nginx_user):gsub("%s+", " ")
     if user == "nobody" or user == "nobody nobody" then
       conf.nginx_user = nil
+      is_nobody = true
     end
+  end
+
+  local kong_usr_exists = os.execute("getent passwd kong > /dev/null 2>&1")
+  local kong_grp_exists = os.execute("getent group kong > /dev/null 2>&1")
+
+  -- We are creating the kong user and group by default upon package
+  -- installation. So if the kong user/group does not exist, it's because
+  -- something really bad happened. But we should be defensive against this
+  -- possibility for backwards compatibility.
+  if kong_usr_exists and kong_grp_exists and is_nobody then
+    conf.nginx_user = "kong kong"
+    conf.nginx_main_user = "kong kong"
   end
 
   do
