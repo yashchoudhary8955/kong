@@ -367,6 +367,9 @@ local cassandra = {
         return nil, "unable to find a default workspace"
       end
 
+      local count = 0
+      local cqls = {}
+
       for rows, err in coordinator:iterate("SELECT id, cache_key FROM " .. table_name) do
         if err then
           return nil, err
@@ -384,11 +387,16 @@ local cassandra = {
               ID = row.id,
             })
 
-            local _, err = coordinator:execute(cql)
-            if err then
-              return nil, err
-            end
+            count = count + 1
+            cqls[count] = cql
           end
+        end
+      end
+
+      for i = 1, count do
+        local _, err = coordinator:execute(cqls[i])
+        if err then
+          return nil, err
         end
       end
 
@@ -407,6 +415,9 @@ local cassandra = {
       if not default_ws then
         return nil, "unable to find a default workspace"
       end
+
+      local count = 0
+      local cqls = {}
 
       for rows, err in coordinator:iterate("SELECT * FROM " .. table_name) do
         if err then
@@ -429,18 +440,23 @@ local cassandra = {
 
             local cql = render("UPDATE $(TABLE) SET $(SET_LIST) WHERE $(PARTITION) id = $(ID)", {
               PARTITION = is_partitioned
-                          and "partition = '" .. table_name .. "' AND"
-                          or  "",
+                and "partition = '" .. table_name .. "' AND"
+                or  "",
               TABLE = table_name,
               SET_LIST = table.concat(set_list, ", "),
               ID = row.id,
             })
 
-            local _, err = coordinator:execute(cql)
-            if err then
-              return nil, err
-            end
+            count = count + 1
+            cqls[count] = cql
           end
+        end
+      end
+
+      for i = 1, count do
+        local _, err = coordinator:execute(cqls[i])
+        if err then
+          return nil, err
         end
       end
 
@@ -453,6 +469,9 @@ local cassandra = {
       local coordinator = assert(connector:get_stored_connection())
       local cassandra = require("cassandra")
       local cjson = require("cjson")
+
+      local count = 0
+      local args = {}
 
       for rows, err in coordinator:iterate("SELECT id, name, config FROM plugins") do
         if err then
@@ -469,15 +488,20 @@ local cassandra = {
             local fix = fixup_fn(config)
 
             if fix then
-              local _, err = coordinator:execute("UPDATE plugins SET config = ? WHERE id = ?", {
+              count = count + 1
+              args[count] = {
                 cassandra.text(cjson.encode(config)),
                 cassandra.uuid(plugin.id)
-              })
-              if err then
-                return nil, err
-              end
+              }
             end
           end
+        end
+      end
+
+      for i = 1, count do
+        local _, err = coordinator:execute("UPDATE plugins SET config = ? WHERE id = ?", args[i])
+        if err then
+          return nil, err
         end
       end
 

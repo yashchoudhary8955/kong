@@ -37,6 +37,9 @@ end
 local function clean_cassandra_fields(connector, entities)
   local coordinator = assert(connector:get_stored_connection())
   for _, entity in ipairs(entities) do
+    local count = 0
+    local cqls = {}
+
     for rows, err in coordinator:iterate("SELECT * FROM " .. entity.name) do
       if err then
         return nil, err
@@ -63,11 +66,16 @@ local function clean_cassandra_fields(connector, entities)
             ID = row.id,
           })
 
-          local _, err = coordinator:execute(cql)
-          if err then
-            return nil, err
-          end
+          count = count + 1
+          cqls[count] = cql
         end
+      end
+    end
+
+    for i = 1, count do
+      local _, err = coordinator:execute(cqls[i])
+      if err then
+        return nil, err
       end
     end
   end
