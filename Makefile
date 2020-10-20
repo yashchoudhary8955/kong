@@ -41,36 +41,11 @@ KONG_VERSION ?= `echo $(KONG_SOURCE_LOCATION)/kong-*.rockspec | sed 's,.*/,,' | 
 
 TAG := $(shell git describe --exact-match HEAD || true)
 
-ifneq ($(TAG),)
-	# We're building a tag
-	ISTAG = true
-	POSSIBLE_PRERELEASE_NAME = $(shell git describe --tags --abbrev=0 | awk -F"-" '{print $$2}')
-	ifneq ($(POSSIBLE_PRERELEASE_NAME),)
-		# We're building a pre-release tag
-		OFFICIAL_RELEASE = false
-		REPOSITORY_NAME = kong-prerelease
-	else
-		# We're building a semver release tag
-		OFFICIAL_RELEASE = true
-		KONG_VERSION ?= `cat $(KONG_SOURCE_LOCATION)/kong-*.rockspec | grep -m1 tag | awk '{print $$3}' | sed 's/"//g'`
-		ifeq ($(PACKAGE_TYPE),apk)
-		    REPOSITORY_NAME = kong-alpine-tar
-		endif
-	endif
-else
-	OFFICIAL_RELEASE = false
-	ISTAG = false
-	BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
-	REPOSITORY_NAME = kong-${BRANCH}
-	REPOSITORY_OS_NAME = ${BRANCH}
-	KONG_PACKAGE_NAME ?= kong-${BRANCH}
-	KONG_VERSION ?= `date +%Y-%m-%d`
-endif
+ISTAG = true
+OFFICIAL_RELEASE = false
+REPOSITORY_NAME = kong-prerelease
 
 release:
-ifeq ($(ISTAG),false)
-	sed -i -e '/return string\.format/,/\"\")/c\return "$(KONG_VERSION)\"' kong/meta.lua
-endif
 	cd $(KONG_BUILD_TOOLS_LOCATION); \
 	$(MAKE) \
 	KONG_VERSION=${KONG_VERSION} \
