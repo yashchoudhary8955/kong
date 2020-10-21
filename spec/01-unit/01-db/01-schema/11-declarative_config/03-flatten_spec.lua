@@ -284,6 +284,8 @@ describe("declarative config: flatten", function()
                 queue_size = 1,
                 retry_count = 10,
                 timeout = 10000,
+                header_name = "Authorization",
+                header_value = null,
               }
             },
             {
@@ -373,7 +375,9 @@ describe("declarative config: flatten", function()
                 method = "POST",
                 queue_size = 1,
                 retry_count = 10,
-                timeout = 10000
+                timeout = 10000,
+                header_name = "Authorization",
+                header_value = null,
               },
               consumer = {
                 id = "UUID"
@@ -552,7 +556,9 @@ describe("declarative config: flatten", function()
                   method = "POST",
                   queue_size = 1,
                   retry_count = 10,
-                  timeout = 10000
+                  timeout = 10000,
+                  header_name = "Authorization",
+                  header_value = null,
                 },
                 consumer = null,
                 created_at = 1234567890,
@@ -1038,7 +1044,9 @@ describe("declarative config: flatten", function()
                   method = "POST",
                   queue_size = 1,
                   retry_count = 10,
-                  timeout = 10000
+                  timeout = 10000,
+                  header_name = "Authorization",
+                  header_value = null,
                 },
                 consumer = null,
                 created_at = 1234567890,

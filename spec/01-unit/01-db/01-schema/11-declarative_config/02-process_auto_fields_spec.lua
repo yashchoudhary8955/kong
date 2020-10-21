@@ -169,6 +169,7 @@ describe("declarative config: process_auto_fields", function()
                 queue_size = 1,
                 retry_count = 10,
                 timeout = 10000,
+                header_name = "Authorization",
               }
             },
           }
@@ -219,6 +220,7 @@ describe("declarative config: process_auto_fields", function()
                 queue_size = 1,
                 retry_count = 10,
                 timeout = 10000,
+                header_name = "Authorization",
               }
             },
           }
@@ -327,6 +329,7 @@ describe("declarative config: process_auto_fields", function()
                       queue_size = 1,
                       retry_count = 10,
                       timeout = 10000,
+                      header_name = "Authorization",
                     }
                   },
                 }
@@ -634,6 +637,7 @@ describe("declarative config: process_auto_fields", function()
                           queue_size = 1,
                           retry_count = 10,
                           timeout = 10000,
+                          header_name = "Authorization",
                         }
                       }
                     }
