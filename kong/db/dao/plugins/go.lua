@@ -511,7 +511,7 @@ local get_plugin do
             ctx_shared = kong.ctx.shared,
           }
 
-          ngx_timer_at(0, function()
+          local ok, err = kong.async:run(function()
             local co = coroutine.running()
             save_for_later[co] = saved
 
@@ -524,6 +524,9 @@ local get_plugin do
 
             save_for_later[co] = nil
           end)
+          if not ok then
+            kong.log.err("failed to execute log phase on go plugin: ", err)
+          end
         end
 
       else
