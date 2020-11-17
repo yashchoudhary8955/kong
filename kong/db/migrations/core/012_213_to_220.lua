@@ -105,7 +105,7 @@ return {
       ALTER TABLE routes ADD response_buffering boolean;
 
       INSERT INTO workspaces(id, name, created_at)
-      VALUES (nextuid(), 'default', toTimeStamp(toDate(now())));
+      VALUES (now(), 'default', toTimeStamp(toDate(now())));
     ]],
     teardown = function(connector)
       local coordinator = assert(connector:get_stored_connection())
